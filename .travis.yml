@@ -6,6 +6,35 @@ go:
   - "1.8"
   - "1.9"
   - "1.10"
+jobs:
+  include:
+    - os: linux
+      arch: amd64
+      dist: bionic
+      env:
+        - VIRTUALBOX_VERSION=6.0
+        - VAGRANT_VERSION=2.2.7
+        - FEDORA_VERSION=31
+        - FEDORA_BOX_VERSION=31.20191023.0
+        - CRIU_BRANCH="master"
+      script:
+        - cd criu && make mrproper && cd ..
+        - tar cf criu.tar criu && rm -rf criu
+        - cat /proc/cpuinfo
+        - wget https://releases.hashicorp.com/vagrant/${VAGRANT_VERSION}/vagrant_${VAGRANT_VERSION}_$(uname -m).deb && sudo dpkg -i vagrant_${VAGRANT_VERSION}_$(uname -m).deb
+        - sudo modprobe kvm kvm_intel
+        - sudo apt-get install -y libvirt-bin libvirt-dev qemu-utils qemu
+        - sudo systemctl restart libvirt-bin
+        - sudo chown $(whoami) /var/run/libvirt/libvirt-sock
+        - vagrant plugin install vagrant-libvirt
+        - vagrant init fedora/${FEDORA_VERSION}-cloud-base --box-version ${FEDORA_BOX_VERSION} && cat Vagrantfile
+        - sed -i Vagrantfile -e 's,^end$,  config.vm.provider :libvirt do |libvirt|'"\n"'    libvirt.memory = 4096;end'"\n"'end,g'
+        - vagrant up --provider=libvirt
+        - mkdir -p ~/.ssh
+        - vagrant ssh-config >> ~/.ssh/config
+        - ssh default sudo dnf install -y podman gcc git gnutls-devel nftables-devel libaio-devel libasan libcap-devel libnet-devel libnl3-devel make protobuf-c-devel protobuf-devel python3-flake8 python3-future python3-protobuf python3-junit_xml rubygem-asciidoctor
+        - ssh default cat /proc/cmdline
+        - ssh default 'cd /vagrant; tar xf criu.tar; cd criu; make -j 4'
 env:
   # Run the tests with CRIU master and criu-dev
   - CRIU_BRANCH="master"
